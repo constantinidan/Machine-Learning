@@ -1,300 +1,306 @@
-## coding: utf8
-## Kaggle Challenge
-## Python 3.5
+## Python version 3.5.0 
 
-## Packages
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import collections
+import numpy as np
+import seaborn
 import sklearn
-from sklearn import linear_model
-from sklearn import svm
-from sklearn import learning_curve
-from sklearn import ensemble
-#%matplotlib inline
 
-## Database
-df= pd.read_csv('data.csv')
+#####
+##### Partie 1 : Statistiques descriptives
+#####
 
-## Transformation to date format
-df['date']=pd.to_datetime(df['datetime'])
 
-## Month, hour and day extraction
-df.set_index('date', inplace=True)
-df['month']=df.index.month
-df['hours']=df.index.hour
-df['dayOfWeek']=df.index.weekday
+### For generating a coloured matrix correlation
+def display(corr):
+	# Generate a mask for the upper triangle
+	mask = np.zeros_like(corr, dtype=np.bool)
+	mask[np.triu_indices_from(mask)] = True
 
-##********* Time influence
+	# Set up the matplotlib figure
+	f, ax = plt.subplots(figsize=(11, 9))
 
-## Mean of bike rentals hour-by-hour
+	# Generate a custom diverging colormap
+	cmap = seaborn.diverging_palette(220, 10, as_cmap=True)
 
-class mean_30():
-    def __init__(self, df):
-        self.df=df
-    def mean_hours_min(self,h):
-        a = self.df["hours"] == h
-        return self.df[a]["count"].mean() 
-    def transf(self, t):
-        return self.mean_hours_min(t)
-    def transfc(self, t):
-        return self.err_hours_min(t)
-    def vector_day(self):
-        k = []
-        for i in range(0,24):
-            k.append(i)
-        hour_day = pd.DataFrame()
-        hour_day["A"] = k
-        return hour_day["A"] 
-    def view(self):
-        plt.plot(self.vector_day().apply(self.transf))
+	# Title
+	ax.set_title("Correlation matrix on continuous variables")
 
-## Plots
+	# Draw the heatmap with the mask and correct aspect ratio
+	seaborn.heatmap(corr, mask=mask, cmap=cmap, vmax=.3,
+				square=True, xticklabels=5, yticklabels=5,
+				linewidths=.5, cbar_kws={"shrink": .5}, ax=ax)
+	# Displaying
+	seaborn.heatmap(corr)
 
-fig=plt.figure()
-fig.suptitle('Location de velo selon l\'heure, jours ouvrables ou non', fontsize=13)
-plt.ylabel('nombre de locations de vélos')
-plt.xlabel('heure de la journée')
-moy0=mean_30(df[df['workingday']==0])
-moy0.view()
-moy1=mean_30(df[df['workingday']==1])
-moy1.view()
-plt.legend(['0','1'])
+
+### Classes des velos
+class bikes():
+	def __init__(self, path):
+		""" Initialization """
+		self.df = pd.DataFrame.from_csv(path)
+		self.preprocess()
+
+	def preprocess(self):
+		""" New variables """
+		self.df['hour'] = self.df.index.map(lambda x: x.hour)
+		self.df['dayofweek'] = self.df.index.map(lambda x: x.dayofweek)
+		self.df['month'] = self.df.index.map(lambda x: x.month)
+		self.df['year'] = self.df.index.map(lambda x: x.year)
+		self.df['floorTemp'] = self.df['temp'].map(lambda x : int(x))
+
+
+	def corrMatrix(self):
+		""" Correlation matrix on continuous variables """
+		continuousVariable = ["temp","atemp", "humidity", "windspeed", 
+								"casual","registered", "count"]
+		display(self.df[continuousVariable].corr())
+		plt.show()
+
+	def histograms(self):
+		""" Histogramms """
+		self.df.hist()
+		plt.show()
+
+	def showBoxPlot(self, variable, absciss):
+		""" Boxplots of 'variable' grouped by 'absciss' """
+		self.df.boxplot(column=variable, by=absciss, showmeans=True)
+		plt.show()
+
+	def meanStd(self,variable, absciss):
+		""" Mean and Std of 'variable' grouped by 'absciss' """
+		grouped = self.df.groupby(absciss)
+		return grouped[variable].agg({'mean': np.mean, 'interval': lambda x : 1.96*np.std(x,ddof=1)/np.sqrt(len(x))})
+
+	def temp(self):
+		""" Displays the mean and standard deviation for each temperature. """
+		tmpdf = self.meanStd('count', 'floorTemp')
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(rotation=0)
+		plt.title('Moyenne du nombre total de locations en fonction de la temperature')
+		plt.xlabel('temperature')
+		plt.show()
+
+	def season(self):
+		""" Displays the mean and standard deviation for each season. """
+		tmpdf = self.meanStd('count', 'season')
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks( range(4), ('Printemps', 'Ete', 'Automne', 'Hiver'), rotation=0)
+		plt.title('Moyenne du nombre total de locations en fonction de la saison')
+		plt.xlabel('saison')
+		plt.show()
+
+	def month(self):
+		""" Displays the mean and standard deviation for each month. """
+		tmpdf = self.meanStd('count', 'month')
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(rotation=0)
+		plt.title('Moyenne du nombre total de locations en fonction du mois')
+		plt.xlabel('mois')
+		plt.show()
+
+	def dayofweek(self):
+		""" Displays the mean and standard deviation for each day of the week. """
+		tmpdf = self.meanStd('registered', 'dayofweek')
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(range(7), ('Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 
+					'Samedi', 'Dimanche'), rotation=0)
+		plt.title('Moyenne des locations par des abonnes en fonction du jour de la semaine')
+		plt.xlabel('jour de la semaine')
+		plt.show()
+
+		tmpdf = self.meanStd('casual', 'dayofweek')
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(range(7), ('Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 
+					'Samedi', 'Dimanche'), rotation=0)
+		plt.title('Moyenne des locations par des non-abonnes en fonction du jour de la semaine')
+		plt.xlabel('jour de la semaine')
+		plt.show()
+
+	def hour(self):
+		""" Displays the mean and standard deviation for each hour of the day. """
+		tmpdf = self.meanStd('registered','hour')
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(rotation=0)
+		plt.title('Moyenne des locations par des abonnes en fonction de l\'heure')
+		plt.xlabel('heure de la journee')
+		plt.show()
+
+		tmpdf = self.meanStd('casual', 'hour')
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(rotation=0)
+		plt.title('Moyenne des locations par des non-abonnes en fonction de l\'heure')
+		plt.xlabel('heure de la journee')
+		plt.show()
+
+	def workingday(self):
+		self.showBoxPlot(['casual', 'registered'], 'workingday')
+
+	def holiday(self):
+		self.showBoxPlot(['casual', 'registered'], 'holiday')
+
+	def weather(self):
+		""" Analysing the weather. """
+		tmpdf = self.meanStd('registered','weather')
+		tmpdf.drop(4,inplace=True)
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(rotation=0)
+		plt.title('Moyenne des locations faites par des abonnes en fonction de la meteo')
+		plt.xlabel('meteo')
+		plt.show()
+
+		tmpdf = self.meanStd('casual','weather')
+		tmpdf.drop(4,inplace=True)
+		tmpdf['mean'].plot(yerr= tmpdf['interval'], kind='bar')
+		plt.xticks(rotation=0)
+		plt.title('Moyenne des locations faites par des abonnes en fonction de la meteo')
+		plt.xlabel('meteo')
+		plt.show()
+
+
+data = bikes('data.csv')
+data.corrMatrix()
+data.temp()
+data.season()
+data.month()
+data.dayofweek()
+data.hour()
+data.workingday()
+data.holiday()
+data.weather()
+
+
+
+#####
+##### Partie 2 : Machine Learning
+#####
+
+
+from sklearn.svm import SVR
+from sklearn.model_selection import train_test_split, GridSearchCV, learning_curve,cross_val_score
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn import ensemble, linear_model
+
+
+##### Training and testing data
+inputVariables = ['season', 'holiday', 'workingday', 'weather', 'temp', 
+					'atemp', 'humidity', 'windspeed','dayofweek', 'hour',
+					'month', 'year'] 
+
+## Splitting the data.
+X_train_sum, X_test_sum, y_train_sum, y_test_sum = train_test_split(data.df[inputVariables].values, data.df['count'].values, test_size=0.3, random_state=0)
+
+
+
+##### Linear Regression 
+#####
+regr = linear_model.LinearRegression()
+scores = cross_val_score(regr, data.df[inputVariables].values, data.df['count'].values)
+print("Linear Regression cross validation score: ", scores.mean())
+regr.fit(X_train_sum, y_train_sum)
+print("Linear Regression training score: ", regr.score(X_train_sum, y_train_sum))
+print("Linear Regression testing score: ", regr.score(X_test_sum, y_test_sum))
+
+
+
+##### Kernel Ridge and Support Vector Regression
+#####
+## Finding the best parameters
+alpha=[1,1e-1,1e-2,1e-3]
+for a in alpha:
+	kr = KernelRidge(kernel='rbf', alpha=a)
+	kr.fit(X_train_sum, y_train_sum)
+	print("Kernel Ridge train score: ", kr.score(X_train_sum, y_train_sum), " for alpha = %s" %a)
+	print("Kernel Ridge test score: ", kr.score(X_test_sum, y_test_sum), " for alpha = %s" %a)
+
+
+### Using GridSearchCV
+param_grid = { 
+	'alpha': [1, 1e-1, 1e-2]
+	"gamma": np.logspace(-2, 2, 5)
+}
+GSKernelRidge = GridSearchCV(KernelRidge(kernel='rbf'), param_grid=param_grid)
+GSKernelRidge.fit(X_train_sum, y_train_sum)
+
+
+
+
+
+kr = KernelRidge(kernel='rbf', alpha=1e-3)
+scores = cross_val_score(kr, data.df[inputVariables].values, data.df['count'].values, cv =3)
+print("Kernel Ridge cross validation score: ", scores.mean())
+
+## Finding the best parameters
+C=[10,100,1000]
+for c in C:
+	svr = SVR(kernel='rbf', C=c, epsilon=0.1)
+	svr.fit(X_train_sum, y_train_sum)
+	print("SVR train score: ", svr.score(X_train_sum, y_train_sum), " for C = %s" %c)
+	print("SVR test score: ", svr.score(X_test_sum, y_test_sum), " for C = %s" %c)
+
+svr = SVR(kernel='rbf', C=1000, epsilon=0.1)
+scores = cross_val_score(svr, data.df[inputVariables].values, data.df['count'].values, cv=4)
+print("SVR cross validation score: ", scores.mean())
+
+
+
+##### Gradient Boosting Regression
+#####
+params = {'n_estimators': 2000, "learning_rate":0.1}
+GBR = ensemble.GradientBoostingRegressor(**params)
+GBR.fit(X_train_sum, y_train_sum)
+print("Gradient Boosting training score: ", GBR.score(X_train_sum, y_train_sum))
+print("Gradient Boosting testing score: ", GBR.score(X_test_sum, y_test_sum))
+scores = cross_val_score(GBR, data.df[inputVariables].values, data.df['count'].values, cv=5)
+print("Gradient Boosting cross validation score: ", scores.mean())
+
+
+
+##### Random Forest Regressor
+#####
+params = {'n_estimators': 40}
+RFR = ensemble.RandomForestRegressor(**params)
+RFR.fit(X_train_sum, y_train_sum)
+print("Random Forest training score: ", RFR.score(X_train_sum, y_train_sum))
+print("Random Forest testing score: ", RFR.score(X_test_sum, y_test_sum))
+scores = cross_val_score(RFR, data.df[inputVariables].values, data.df['count'].values, cv=5)
+print("Random Forest cross validation score: ", scores.mean())
+
+### Curve of score in fonction of the nomber of estimators
+scoresCount = []
+estimators = [1,3,5,7,10,30,50,80, 100]
+for e in estimators:
+	params = {'n_estimators': e}
+	RFR = ensemble.RandomForestRegressor(**params)
+	RFR.fit(X_train_sum, y_train_sum)
+	scoresCount.append(RFR.score(X_test_sum, y_test_sum))
+
+plt.plot(estimators, scoresCount)
+plt.xlabel('Nombre d\'estimateurs')
+plt.ylabel('R2_score')
 plt.show()
 
-## Standard of bike rentals hour-by-hour 
 
-## 0 to 6 for each day of the week
+##### Model improvement
+## Splitting into two models: registered and casual to see if there is improvement
+X_train, X_test, y_train, y_test = train_test_split(data.df[inputVariables].values, data.df[['registered', 'casual']].values, test_size=0.3, random_state=0)
+y_train_reg = y_train[:,0]
+y_train_cas = y_train[:,1]
+y_test_reg = y_test[:,0]
+y_test_cas = y_test[:,1]
 
-j=0
-
-class std_30():
-    def __init__(self, df):
-        self.df=df
-    def mean_hours_std(self,j,h):
-        y = self.df[self.df["dayOfWeek"]==j]["hours"] == h
-        return self.df[self.df["dayOfWeek"]==j][y]["count"].mean()
-    def err_hours(self,j,h):
-        y = self.df[self.df["dayOfWeek"]==j]["hours"] == h
-        return self.df[self.df["dayOfWeek"]==j][y]["count"].std()
-    def transf_err(self,t):
-        return self.mean_hours_std(j,t)
-    def transf_err2(self,t):
-        return self.err_hours(j,t)
-    def vector_day(self):
-        k = []
-        for i in range(0,24):
-            k.append(i)
-        hour_std = pd.DataFrame()
-        hour_std["A"] = k
-        return hour_std["A"] 
-    def view(self):
-        errors=self.vector_day().apply(self.transf_err2)
-        fig, ax = plt.subplots()
-        self.vector_day().apply(self.transf_err).plot(yerr=errors, ax=ax,label=str(j))
-        plt.legend('0',loc=2,prop={'size':9})
-
-fig.suptitle('Deviation standard des locations de velo selon l\'heure', fontsize=13)
-std0=std_30(df)
-std0.view()
-plt.ylabel('nombre de locations de vélos')
-plt.xlabel('heure de la journée')
-plt.show()
+params = {'n_estimators': 50}
+RFR_reg = ensemble.RandomForestRegressor(**params)
+RFR_reg.fit(X_train, y_train_reg)
+RFR_cas = ensemble.RandomForestRegressor(**params)
+RFR_cas.fit(X_train, y_train_cas)
+print('2-M Random Forest test score: ',r2_score(RFR_cas.predict(X_test) + RFR_reg.predict(X_test), y_test_reg+y_test_cas))
 
 
-##************ Month influence
-
-## Monthly mean of bike rentals 
-
-class month_30():
-    def __init__(self, df):
-        self.df=df
-    def mean_hours_min(self,m):
-        a = self.df["month"] == m
-        return self.df[a]["count"].mean() 
-    def transf(self, t):
-        return self.mean_hours_min(t)
-    def transfc(self, t):
-        return self.err_hours_min(t)
-    def vector_day(self):
-        k = []
-        for i in range(0,13):
-            k.append(i)
-        hour_day = pd.DataFrame()
-        hour_day["A"] = k
-        return hour_day["A"] 
-    def view(self):
-        plt.plot(self.vector_day().apply(self.transf))
-
-## Plots
-
-fig=plt.figure()
-fig.suptitle('Location de velo selon le mois', fontsize=13)
-moy0=month_30(df)
-moy0.view()
-plt.ylabel('nombre de locations de vélos')
-plt.xlabel('mois de l\' année')
-plt.show()
-
- 
-##**************** Weather impact
-
-plt.figure()
-
-## Bike demand mean for all 4 weather conditions
-
-a={u'Degage/nuageux':df[df['weather']==1]['count'].mean(), 
-     u'Brouillard': df[df['weather']==2]['count'].mean(), 
-     u'Legere pluie':df[df['weather']==3]['count'].mean()
-    }
-
-width = 1/1.6
-plt.bar(range(len(a)), a.values(),width,color="blue",align='center')
-plt.xticks(range(len(a)), a.keys())
-plt.ylabel('nombre de locations de vélos')
-plt.title('Moyenne des locations de velos pour differentes conditions meteorologiques')
-plt.show()
-
- 
-##************** Wind, temperature and humidity impact
-
-D = {u'V>13k/h':df[df['windspeed']>13]['count'].mean(), 
-     u'V<13k/h': df[df['windspeed']<13]['count'].mean(), 
-     u'T<24°C':df[df['atemp']<24]['count'].mean(), 
-     u'T>24°C':df[df['atemp']>24]['count'].mean(), 
-     u'H>62%': df[df['humidity']>62]['count'].mean(), 
-     u'H<62%':df[df['humidity']<62]['count'].mean()
-    }
-od = collections.OrderedDict(sorted(D.items()))
-width = 1/1.6
-plt.figure()
-plt.bar(range(len(od)), od.values(),width,color="blue",align='center')
-plt.xticks(range(len(od)), od.keys())
-plt.title('Variation de la demande en fonction de 3 variables')
-plt.show()
-
-## Correlations
-
-df.corr()
-plt.matshow(df.corr())
-plt.yticks(range(len(df.corr().columns)), df.corr().columns); 
-plt.colorbar()
-plt.show()
 
 
-##*********** Machine Learning
 
 
-df1=df.drop(['workingday','datetime','season','atemp','holiday','registered','casual'],axis=1)
 
-target=df1['count'].values # outputs 
-
-train=df1.drop('count',axis=1) # data
-
-## Random data split 
-X_train, X_test, Y_train, Y_test = sklearn.cross_validation.train_test_split(
-    train, target, test_size=0.33, random_state=42)
-
-## Learning curves
-
-def plot_learning_curve(estimator, title, X, y, cv=None, n_jobs=1, train_sizes=np.linspace(.1, 1.0, 5)):
-    plt.figure()
-    plt.title(title)
-    plt.xlabel("Training examples")
-    plt.ylabel("Score")
-    train_sizes, train_scores, test_scores = sklearn.learning_curve.learning_curve(
-        estimator, X, y, cv=cv, n_jobs=n_jobs, train_sizes=train_sizes)
-    train_scores_mean = np.mean(train_scores, axis=1)
-    train_scores_std = np.std(train_scores, axis=1)
-    test_scores_mean = np.mean(test_scores, axis=1)
-    test_scores_std = np.std(test_scores, axis=1)
-    plt.grid()
-    plt.plot(train_sizes, train_scores_mean, 'o-', color="r", label="Training score")
-    plt.plot(train_sizes, test_scores_mean, 'o-', color="g", label="Cross-validation score")
-    plt.legend(loc="best")
-    return plt
-
-##*************** Linear Regression
-
-linreg=linear_model.LinearRegression()
-linreg.fit(X_train,Y_train)
-tableau=[['Paramètre', 'Coefficient']]
-col=list(train.columns.values)
-for i in range(7):
-    tableau.append([col[i],linreg.coef_[i]])
-
-print ("Training Score Regression Linéare : ", str(linreg.score(X_train,Y_train)))
-print ("Test Score Regression Linéare : " , str(linreg.score(X_test,Y_test)))
-print ("Coefficients Regression Linéare :")
-print (tableau)
-
-
-##*************** Gradient Boosting Regression
-
-gbr = ensemble.GradientBoostingRegressor(n_estimators=2000)
-gbr.fit(X_train,Y_train)
-print ("Training Score GradientBoosting: ", str(gbr.score(X_train,Y_train)))
-print ("Test Score GradientBoosting: " , str(gbr.score(X_test,Y_test)))
-
-title = "Learning Curves (GradientBoosting)"
-estimator = ensemble.GradientBoostingRegressor(n_estimators=2000)
-plot_learning_curve(estimator, title, X_train, Y_train)
-plt.show()
-
-
-##*************** Support Vector Regression
-svr=svm.SVR(kernel='linear')
-svr.fit(X_train,Y_train)
-print ("Training Score SVR: ", str(svr.score(X_train,Y_train)))
-print ("Test Score SVR : " , str(svr.score(X_test,Y_test)))
-
-##*************** Random Forest Regression
-
-rf=ensemble.RandomForestRegressor(n_estimators=30,oob_score=True) #30 arbres et OOB Estimation
-rf.fit(train,target)
-print ("Training Score RandomForest: ", str(rf.score(train,target)))
-print ("OOB Score RandomForest: " , str(rf.oob_score_))
-
-
-## Parameters' relevancy
-def param_import():
-    col=list(train.columns.values)
-    #on trouve d'abord les coefficients de la régréssion linéaire
-    index1=linreg.coef_.argsort()[-2:][-1] #renvoie la liste triée des coef et on prend le premier élement
-    index2=linreg.coef_.argsort()[-2:][0] #renvoie la liste triée des coef et on prend le deuxieme élement
-    print('Pour les améliorations, calculons les paramètres les plus influents : ')
-    print('...')
-    print('Pour la regréssion linéaire, les paramètres les plus influents sont :', col[index1],' et ',col[index2])
-    #on trouve ensuite les coefficients de la RF
-    index3=rf.feature_importances_.argsort()[-2:][-1] 
-    index4=rf.feature_importances_.argsort()[-2:][0] 
-    print('Pour l\'algorithme de RF, les paramètres les plus influents sont :', col[index3],' et ',col[index4])
-    #on trouve ensuite les coefficients de Gradient Boosting
-    index5=gbr.feature_importances_.argsort()[-2:][-1]
-    index6=gbr.feature_importances_.argsort()[-2:][0]
-    print('Pour l\'algorithme de Gradient Boosting, les paramètres les plus influents sont :', col[index5],' et ',col[index6])
-    if index3==index5:
-        plus_import=index3
-    elif index5==index4:
-        plus_import=index4
-    return plus_import
-
-print('Le paramètre le plus important est donc : ', col[param_import()])
-
-## Relevant hours.
-
-soir = df[df['hours'].isin([17,18,19])]
-peak_soir=soir[soir['workingday']==1]
-matin = df[df['hours'].isin([7,8,9])]
-peak_matin=matin[matin['workingday']==1]
-we = df[df['hours'].isin([12,13,14,15,16])]
-peak_we=we[we['workingday']==0]
-
-print('Calculons ensuite la moyenne du nombre de vélos pour plusieurs créneaux horaires : ')
-print('...')
-print('La moyenne totale de la demande est : ', df['count'].mean())
-print('En semaine, entre 17 et 19h : ', peak_soir['count'].mean())
-print('En semaine, entre 7 et 9h : ', peak_matin['count'].mean())
-print('En week-end, entre 12 et 16h : ', peak_we['count'].mean())
 
